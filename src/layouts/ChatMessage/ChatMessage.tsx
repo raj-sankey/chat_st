@@ -50,19 +50,6 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
       )}
 
       <div className="flex flex-col items-end">
-        {/* Text message (if any) */}
-        {text && type !== "text" && (
-          <div
-            className={`p-3 mb-1 max-w-xs ${
-              isMe
-                ? "bg-[#0369A1] rounded-t-lg rounded-bl-lg text-white"
-                : "bg-[#F4F4F5] rounded-b-lg rounded-tr-lg"
-            }`}
-          >
-            <p className="text-left">{text}</p>
-          </div>
-        )}
-
         {/* File message */}
         <div
           className={`p-3 max-w-xs flex flex-col items-start ${
@@ -84,31 +71,54 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
           )}
 
           {type === "image" && fileUrl && (
-            <div>
+            <div className="flex flex-col">
               <img
                 src={fileUrl}
                 alt="sent-img"
                 className="rounded-lg max-h-48 object-cover mt-1"
               />
+              {text && <p className="mt-2 text-sm text-left">{text}</p>}
             </div>
           )}
 
           {type === "video" && fileUrl && (
-            <div>
-              <video controls src={fileUrl} className="rounded-lg max-h-48" />
-              <p className="text-sm mt-1">{fileName}</p>
+            <div className="rounded-lg">
+              <div className=" rounded-lg flex flex-col bg-white">
+                <video
+                  controls
+                  src={fileUrl}
+                  className="rounded-t-lg max-h-48"
+                />
+                {fileName && (
+                  <p className="text-sm mt-1 bg-white text-left p-2 text-black">
+                    {fileName}
+                  </p>
+                )}
+              </div>
+              {text && (
+                <p className="mt-2 text-sm text-left rounded-b-lg">{text}</p>
+              )}
             </div>
           )}
 
           {type === "audio" && fileUrl && (
-            <div>
-              <audio controls src={fileUrl} className="mt-1 w-full" />
-              <p className="text-sm mt-1">{fileName}</p>
+            <div className="w-full flex flex-col">
+              <div className="flex items-center gap-2 p-2 bg-white bg-opacity-20 rounded-t">
+                <audio controls src={fileUrl} className="flex-1" />
+              </div>
+              {fileName && (
+                <p className="text-sm text-left p-2 bg-white rounded-b text-gray-300">
+                  {fileName}
+                </p>
+              )}
+              {text && (
+                <p className="mt-2 text-sm text-left text-gray-300">{text}</p>
+              )}
             </div>
           )}
 
           {type === "file" && fileUrl && (
-            <div>
+            <div className="flex flex-col">
               <a
                 href={fileUrl}
                 target="_blank"
@@ -118,6 +128,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
                 <span className="text-xl">{getFileIcon(type)}</span>
                 <span className="text-sm underline">{fileName}</span>
               </a>
+              {text && <p className="mt-2 text-sm text-left">{text}</p>}
             </div>
           )}
 

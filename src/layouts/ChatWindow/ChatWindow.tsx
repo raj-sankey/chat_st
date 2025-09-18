@@ -18,6 +18,7 @@ import { MdOutlinePushPin } from "react-icons/md";
 import { IoIosVolumeMute } from "react-icons/io";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { LuPinOff } from "react-icons/lu";
 
 interface ChatWindowProps {
   selectedChat: any | null;
@@ -79,15 +80,29 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
     }
   }, [selectedChat]);
 
+  // In your ChatWindow component, update the handleSend function:
   const handleSend = (
     msg: string,
     type = "text",
     fileUrl?: string,
     fileName?: string
   ) => {
+    // For audio messages, use the file name as text if no caption is provided
+    const messageText =
+      type === "audio" && !msg.trim()
+        ? `Voice message: ${fileName || "Audio"}`
+        : msg;
+
     setMessages((prev) => [
       ...prev,
-      { sender: "Me", text: msg, time: "now", type, fileUrl, fileName },
+      {
+        sender: "Me",
+        text: messageText,
+        time: "now",
+        type,
+        fileUrl,
+        fileName,
+      },
     ]);
 
     // Clear the preview after sending
@@ -278,7 +293,12 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
                     className="flex items-center gap-3 cursor-pointer"
                     onClick={() => onTogglePin(selectedChat.incident_id)}
                   >
-                    <MdOutlinePushPin size={20} />
+                    {isPinned ? (
+                      <LuPinOff size={20} />
+                    ) : (
+                      <MdOutlinePushPin size={20} />
+                    )}
+
                     <span className="text-lg">
                       {isPinned ? "Unpin Chat" : "Pin Chat"}
                     </span>
@@ -296,13 +316,15 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
 
       {/* Body with File Preview Overlay */}
       <div
-        className="flex-1 overflow-y-auto p-4 bg-white relative"
+        className={`flex-1 relative ${
+          previewFile ? "overflow-hidden" : "overflow-y-auto"
+        } p-4 bg-white`}
         ref={messagesContainerRef}
       >
         {previewFile && (
-          <div className="absolute inset-0 bg-[#F8FAFC] z-10 flex flex-col">
+          <div className="absolute inset-0 bg-[#F8FAFC] z-10 flex flex-col overflow-y-auto">
             {/* Preview Header */}
-            <div className="p-4 flex justify-between items-center border-b">
+            <div className="p-4 flex justify-between items-center border-b bg-white">
               <Button
                 variant="ghost"
                 size="icon"
@@ -360,8 +382,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
           </div>
         )}
 
-        {view === "chat" ? (
-          // Chat Messages
+        {/* Chat Messages */}
+        {!previewFile && view === "chat" && (
           <>
             {messages.map((msg, i) => (
               <ChatMessage
@@ -379,68 +401,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
                 }
               />
             ))}
-            {/* Invisible element at the bottom for auto-scrolling */}
             <div ref={messagesEndRef} />
           </>
-        ) : (
-          // Profile View
-          <div className="flex flex-col items-center gap-2">
-            {/* Profile Image */}
-            <img
-              src={selectedChat.incident_img_url || userIcon}
-              alt="Profile"
-              className="w-24 h-24 rounded-full border"
-            />
-
-            {/* Name */}
-            <h2 className="text-xl font-bold text-gray-800">
-              {selectedChat.type === "single"
-                ? selectedChat.responder_name
-                : selectedChat.incident_name}
-            </h2>
-
-            {/* Number of members */}
-            {selectedChat.type === "group" && (
-              <p className="text-gray-500">
-                {selectedChat.responder.length} members
-              </p>
-            )}
-
-            {/* Members list */}
-            {selectedChat.type === "group" ? (
-              <div className="w-full mt-4">
-                {selectedChat.responder.map((member: any, idx: number) => (
-                  <div
-                    key={idx}
-                    className="flex items-center gap-3 p-2 hover:bg-gray-100 rounded-lg"
-                  >
-                    <img
-                      src={member.responder_img_url || userIcon}
-                      alt={member.responder_name}
-                      className="w-10 h-10 rounded-full border"
-                    />
-                    <div className="flex flex-col items-start">
-                      <p className="font-medium text-gray-800">
-                        {member.responder_name}
-                      </p>
-                      <p className="text-sm text-gray-500">{member.email}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="w-full mt-6 px-6 flex flex-col gap-4">
-                <div className="flex flex-col items-start">
-                  <span className="font-semibold text-black">Username</span>
-                  <span className="text-gray-500">{selectedChat.username}</span>
-                </div>
-                <div className="flex flex-col items-start">
-                  <span className="font-semibold text-black">Email</span>
-                  <span className="text-gray-500">{selectedChat.email}</span>
-                </div>
-              </div>
-            )}
-          </div>
         )}
       </div>
 
