@@ -126,3 +126,45 @@
     @apply bg-background text-foreground;
   }
 }
+/* default (light theme) */
+:root {
+  --scrollbar-thumb: rgba(0, 0, 0, 0.15);
+  --scrollbar-track: rgba(0, 0, 0, 0.04);
+  --scrollbar-width: 8px;
+}
+
+/* dark theme overrides (set `[data-theme="dark"]` on <html> or <body>) */
+[data-theme="dark"] {
+  --scrollbar-thumb: rgba(255, 255, 255, 0.12);
+  --scrollbar-track: rgba(255, 255, 255, 0.04);
+}
+
+/* apply to your messages container using class .messages-scrollbar */
+.messages-scrollbar {
+  /* firefox */
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+/* webkit */
+.messages-scrollbar::-webkit-scrollbar {
+  width: var(--scrollbar-width);
+  height: var(--scrollbar-width);
+}
+
+.messages-scrollbar::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+  border-radius: 9999px;
+}
+
+.messages-scrollbar::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 9999px;
+  border: 2px solid transparent; /* keeps thumb visually thin */
+  background-clip: padding-box;
+}
+
+/* slightly darker thumb on hover (subtle) */
+.messages-scrollbar::-webkit-scrollbar-thumb:hover {
+  filter: brightness(0.95);
+}

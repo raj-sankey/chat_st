@@ -60,25 +60,45 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
   const isPinned =
     selectedChat && pinnedChats.includes(selectedChat.incident_id);
 
-  // Auto-scroll to bottom when messages change
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  // updated scrollToBottom (uses container scroll to be more reliable)
+  const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
+    const container = messagesContainerRef.current;
+    if (container) {
+      // ensure container actually scrolls to bottom
+      container.scrollTo({ top: container.scrollHeight, behavior });
+      return;
+    }
+    // fallback to element ref
+    messagesEndRef.current?.scrollIntoView({ behavior });
   };
 
-  // Scroll to bottom on initial render and when messages change
+  // run once on mount (instant)
   useEffect(() => {
-    scrollToBottom();
+    scrollToBottom("auto");
+  }, []);
+
+  // whenever messages change -> smooth scroll
+  useEffect(() => {
+    scrollToBottom("smooth");
   }, [messages]);
 
-  // Also scroll to bottom when chat changes
+  // when view switches back to chat, ensure we scroll (DOM might be re-rendered)
   useEffect(() => {
-    if (selectedChat) {
-      // Small timeout to ensure DOM is updated
-      setTimeout(() => {
-        scrollToBottom();
-      }, 100);
+    if (view === "chat") {
+      // give React a frame to render the chat DOM
+      requestAnimationFrame(() => scrollToBottom("auto"));
+      // small fallback in case requestAnimationFrame isn't enough:
+      setTimeout(() => scrollToBottom("auto"), 50);
     }
-  }, [selectedChat]);
+  }, [view]);
+
+  // when preview closes, also ensure the chat remains at bottom
+  useEffect(() => {
+    if (!previewFile) {
+      requestAnimationFrame(() => scrollToBottom("auto"));
+      setTimeout(() => scrollToBottom("auto"), 50);
+    }
+  }, [previewFile]);
 
   // In your ChatWindow component, update the handleSend function:
   const handleSend = (
@@ -316,9 +336,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
 
       {/* Body with File Preview Overlay */}
       <div
-        className={`flex-1 relative ${
-          previewFile ? "overflow-hidden" : "overflow-y-auto"
-        } p-4 bg-white`}
+        className={`flex-1 relative ${previewFile ? "overflow-hidden" : "overflow-y-auto"} p-4 bg-white messages-scrollbar`}
         ref={messagesContainerRef}
       >
         {previewFile && (
@@ -383,7 +401,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
         )}
 
         {/* Chat Messages */}
-        {!previewFile && view === "chat" && (
+        {!previewFile && view === "chat" ? (
           <>
             {messages.map((msg, i) => (
               <ChatMessage
@@ -403,6 +421,65 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
             ))}
             <div ref={messagesEndRef} />
           </>
+        ) : (
+          // Profile View
+          <div className="flex flex-col items-center gap-2">
+            {/* Profile Image */}
+            <img
+              src={selectedChat.incident_img_url || userIcon}
+              alt="Profile"
+              className="w-24 h-24 rounded-full border"
+            />
+
+            {/* Name */}
+            <h2 className="text-xl font-bold text-gray-800">
+              {selectedChat.type === "single"
+                ? selectedChat.responder_name
+                : selectedChat.incident_name}
+            </h2>
+
+            {/* Number of members */}
+            {selectedChat.type === "group" && (
+              <p className="text-gray-500">
+                {selectedChat.responder.length} members
+              </p>
+            )}
+
+            {/* Members list */}
+            {selectedChat.type === "group" ? (
+              <div className="w-full mt-4">
+                {selectedChat.responder.map((member: any, idx: number) => (
+                  <div
+                    key={idx}
+                    className="flex items-center gap-3 p-2 hover:bg-gray-100 rounded-lg"
+                  >
+                    <img
+                      src={member.responder_img_url || userIcon}
+                      alt={member.responder_name}
+                      className="w-10 h-10 rounded-full border"
+                    />
+                    <div className="flex flex-col items-start">
+                      <p className="font-medium text-gray-800">
+                        {member.responder_name}
+                      </p>
+                      <p className="text-sm text-gray-500">{member.email}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="w-full mt-6 px-6 flex flex-col gap-4">
+                <div className="flex flex-col items-start">
+                  <span className="font-semibold text-black">Username</span>
+                  <span className="text-gray-500">{selectedChat.username}</span>
+                </div>
+                <div className="flex flex-col items-start">
+                  <span className="font-semibold text-black">Email</span>
+                  <span className="text-gray-500">{selectedChat.email}</span>
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </div>
 

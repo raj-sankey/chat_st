@@ -216,27 +216,12 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
           {/* Mic Button - Push to Talk */}
           {!hasPreview && (
-            // <Button
-            //   variant="ghost"
-            //   size="icon"
-            //   onMouseDown={startVoiceRecording}
-            //   onMouseUp={stopVoiceRecording}
-            //   onTouchStart={startVoiceRecording}
-            //   onTouchEnd={stopVoiceRecording}
-            //   className={`w-12 h-12 rounded-full ${
-            //     status === "recording"
-            //       ? "bg-red-100 text-red-600 animate-pulse"
-            //       : "bg-white border-2 border-[#E4E4E7] hover:bg-gray-50"
-            //   }`}
-            // >
-            //   <IoMicOutline size={24} />
-            // </Button>
             <div
               onMouseDown={startVoiceRecording}
               onMouseUp={stopVoiceRecording}
               onTouchStart={startVoiceRecording}
               onTouchEnd={stopVoiceRecording}
-              className="absolute top-[-18px] right-[20px] flex items-center justify-center w-18 h-18 bg-white border-2 border-[#E4E4E7] rounded-full shadow-md hover:shadow-lg transition duration-300"
+              className="absolute cursor-pointer top-[-18px] right-[20px] flex items-center justify-center w-18 h-18 bg-white border-2 border-[#E4E4E7] rounded-full shadow-md hover:shadow-lg transition duration-300"
             >
               <IoMicOutline className="text-black" size={38} />
             </div>
