@@ -24,14 +24,13 @@ type Chat = SingleChat | GroupChat;
 
 const ChatLayout: React.FC = () => {
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
-  const [pinnedChats, setPinnedChats] = useState<string[]>([]); // store incident_id of pinned
+  const [pinnedChats, setPinnedChats] = useState<string[]>([]);
 
   const handleTogglePin = (chatId: string) => {
-    setPinnedChats(
-      (prev) =>
-        prev.includes(chatId)
-          ? prev.filter((id) => id !== chatId) // unpin
-          : [...prev, chatId] // pin
+    setPinnedChats((prev) =>
+      prev.includes(chatId)
+        ? prev.filter((id) => id !== chatId)
+        : [...prev, chatId]
     );
   };
 

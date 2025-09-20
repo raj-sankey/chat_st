@@ -5,6 +5,7 @@ import {
   IoEllipsisVertical,
   IoClose,
 } from "react-icons/io5";
+import { CiChat1 } from "react-icons/ci";
 import ChatMessage from "../ChatMessage/ChatMessage";
 import ChatInput from "../ChatInput/ChatInput";
 import userIcon from "../../assets/img/default_users.png";
@@ -39,8 +40,17 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
       type: string;
       fileUrl?: string;
       fileName?: string;
+      date: string;
     }[]
-  >([{ sender: "Sasha Coen", text: "Hello!", time: "2:59 pm", type: "text" }]);
+  >([
+    {
+      sender: "Sasha Coen",
+      text: "Hello!",
+      time: "2:59 pm",
+      type: "text",
+      date: new Date().toISOString(),
+    },
+  ]);
 
   const [view, setView] = useState<"chat" | "profile">("chat");
   const [previewFile, setPreviewFile] = useState<{
@@ -53,46 +63,36 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
   const [searchResults, setSearchResults] = useState<number[]>([]);
   const [currentResultIndex, setCurrentResultIndex] = useState(-1);
 
-  // Ref for the messages container
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   const isPinned =
     selectedChat && pinnedChats.includes(selectedChat.incident_id);
 
-  // updated scrollToBottom (uses container scroll to be more reliable)
   const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
     const container = messagesContainerRef.current;
     if (container) {
-      // ensure container actually scrolls to bottom
       container.scrollTo({ top: container.scrollHeight, behavior });
       return;
     }
-    // fallback to element ref
     messagesEndRef.current?.scrollIntoView({ behavior });
   };
 
-  // run once on mount (instant)
   useEffect(() => {
     scrollToBottom("auto");
   }, []);
 
-  // whenever messages change -> smooth scroll
   useEffect(() => {
     scrollToBottom("smooth");
   }, [messages]);
 
-  // when view switches back to chat, ensure we scroll (DOM might be re-rendered)
   useEffect(() => {
     if (view === "chat") {
-      // give React a frame to render the chat DOM
       requestAnimationFrame(() => scrollToBottom("auto"));
-      // small fallback in case requestAnimationFrame isn't enough:
       setTimeout(() => scrollToBottom("auto"), 50);
     }
   }, [view]);
 
-  // when preview closes, also ensure the chat remains at bottom
   useEffect(() => {
     if (!previewFile) {
       requestAnimationFrame(() => scrollToBottom("auto"));
@@ -100,37 +100,40 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
     }
   }, [previewFile]);
 
-  // In your ChatWindow component, update the handleSend function:
   const handleSend = (
     msg: string,
     type = "text",
     fileUrl?: string,
     fileName?: string
   ) => {
-    // For audio messages, use the file name as text if no caption is provided
     const messageText =
       type === "audio" && !msg.trim()
         ? `Voice message: ${fileName || "Audio"}`
         : msg;
+
+    const now = new Date();
+    const formattedTime = now.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
 
     setMessages((prev) => [
       ...prev,
       {
         sender: "Me",
         text: messageText,
-        time: "now",
+        time: formattedTime,
         type,
         fileUrl,
         fileName,
+        date: now.toISOString(),
       },
     ]);
 
-    // Clear the preview after sending
     setPreviewFile(null);
   };
 
   const handleFileSelect = (fileUrl: string, type: string, file: File) => {
-    // Show preview for all file types
     setPreviewFile({ url: fileUrl, type, file });
   };
 
@@ -180,7 +183,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
 
     setCurrentResultIndex(newIndex);
 
-    // Scroll to the searched message
     const messageElement = document.getElementById(
       `message-${searchResults[newIndex]}`
     );
@@ -206,7 +208,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
     );
   }
 
-  // Chat Header Info
   const title =
     selectedChat.type === "single"
       ? selectedChat.responder_name
@@ -217,6 +218,51 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
       ? selectedChat.email
       : selectedChat.responder.map((r: any) => r.responder_name).join(", ");
 
+  // Date formatting and grouping
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+
+    if (date.toDateString() === today.toDateString()) return "Today";
+    if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
+
+    return date.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  };
+
+  const groupMessagesByDate = (messages: any[]) => {
+    return messages.reduce((groups: any, msg, index) => {
+      const dateKey = formatDate(msg.date);
+      if (!groups[dateKey]) groups[dateKey] = [];
+      groups[dateKey].push({ ...msg, index });
+      return groups;
+    }, {});
+  };
+
+  const sortDateKeys = (keys: string[]) => {
+    return keys.sort((a, b) => {
+      const parseDate = (label: string) => {
+        if (label === "Today") return new Date();
+        if (label === "Yesterday") {
+          const d = new Date();
+          d.setDate(d.getDate() - 1);
+          return d;
+        }
+        return new Date(label);
+      };
+      return parseDate(a).getTime() - parseDate(b).getTime();
+    });
+  };
+
+  const groupedMessages = groupMessagesByDate(messages);
+  console.log("grouped message", groupedMessages);
+  const sortedDateKeys = sortDateKeys(Object.keys(groupedMessages));
+
   return (
     <div className="flex flex-col flex-1 relative">
       {/* Header */}
@@ -224,7 +270,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
         <div className="flex justify-between items-center gap-5">
           <IoChevronBack
             size={24}
-            onClick={() => setView("chat")} // back resets to chat
+            onClick={() => setView("chat")}
             className="cursor-pointer"
           />
           <div className="flex items-center">
@@ -244,7 +290,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
           </div>
         </div>
 
-        {/* Hide buttons in Profile view */}
         {view === "chat" && (
           <div className="flex gap-5">
             {searchMode ? (
@@ -334,14 +379,16 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
         )}
       </div>
 
-      {/* Body with File Preview Overlay */}
+      {/* Body */}
       <div
-        className={`flex-1 relative ${previewFile ? "overflow-hidden" : "overflow-y-auto"} p-4 bg-white messages-scrollbar`}
+        className={`flex-1 relative ${
+          previewFile ? "overflow-hidden" : "overflow-y-auto"
+        } p-4 bg-white messages-scrollbar`}
         ref={messagesContainerRef}
       >
-        {previewFile && (
+        {previewFile ? (
           <div className="absolute inset-0 bg-[#F8FAFC] z-10 flex flex-col overflow-y-auto">
-            {/* Preview Header */}
+            {/* File preview */}
             <div className="p-4 flex justify-between items-center border-b bg-white">
               <Button
                 variant="ghost"
@@ -354,8 +401,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
               <h3 className="font-semibold">File Preview</h3>
               <div className="w-10"></div>
             </div>
-
-            {/* Preview Content */}
             <div className="flex-1 flex items-center justify-center p-4">
               {previewFile.type === "image" ? (
                 <img
@@ -398,54 +443,74 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
               )}
             </div>
           </div>
-        )}
-
-        {/* Chat Messages */}
-        {!previewFile && view === "chat" ? (
+        ) : view === "chat" ? (
           <>
-            {messages.map((msg, i) => (
-              <ChatMessage
-                key={i}
-                id={`message-${i}`}
-                sender={msg.sender}
-                text={msg.text}
-                time={msg.time}
-                type={msg.type}
-                fileUrl={msg.fileUrl}
-                fileName={msg.fileName}
-                isHighlighted={
-                  searchResults.includes(i) &&
-                  currentResultIndex === searchResults.indexOf(i)
-                }
-              />
-            ))}
-            <div ref={messagesEndRef} />
+            {messages.length === 0 ? (
+              // Empty state fallback
+              <div className="flex flex-col items-center justify-center h-full text-center text-gray-500">
+                <CiChat1 size={130} />
+                <h2 className="text-xl font-semibold text-gray-700">
+                  No chat messages
+                </h2>
+                <p className="text-sm text-gray-500 mt-2 max-w-xs">
+                  Description text for empty state to inform user what they can
+                  do
+                </p>
+              </div>
+            ) : (
+              // Messages rendering
+              <>
+                {sortedDateKeys.map((dateKey, idx) => (
+                  <div key={idx}>
+                    {/* Date Separator */}
+                    <div className="flex items-center justify-center my-4">
+                      <span className="bg-gray-200 text-gray-600 px-4 py-1 rounded-full text-sm">
+                        {dateKey}
+                      </span>
+                    </div>
+
+                    {/* Messages */}
+                    {groupedMessages[dateKey].map((msg: any) => (
+                      <ChatMessage
+                        key={`msg-${msg.index}`}
+                        id={`message-${msg.index}`}
+                        sender={msg.sender}
+                        text={msg.text}
+                        time={msg.time}
+                        type={msg.type}
+                        fileUrl={msg.fileUrl}
+                        fileName={msg.fileName}
+                        isHighlighted={
+                          searchResults.includes(msg.index) &&
+                          currentResultIndex ===
+                            searchResults.indexOf(msg.index)
+                        }
+                      />
+                    ))}
+                  </div>
+                ))}
+                <div ref={messagesEndRef} />
+              </>
+            )}
           </>
         ) : (
-          // Profile View
+          // Profile view
           <div className="flex flex-col items-center gap-2">
-            {/* Profile Image */}
             <img
               src={selectedChat.incident_img_url || userIcon}
               alt="Profile"
               className="w-24 h-24 rounded-full border"
             />
-
-            {/* Name */}
             <h2 className="text-xl font-bold text-gray-800">
               {selectedChat.type === "single"
                 ? selectedChat.responder_name
                 : selectedChat.incident_name}
             </h2>
-
-            {/* Number of members */}
             {selectedChat.type === "group" && (
               <p className="text-gray-500">
                 {selectedChat.responder.length} members
               </p>
             )}
-
-            {/* Members list */}
             {selectedChat.type === "group" ? (
               <div className="w-full mt-4">
                 {selectedChat.responder.map((member: any, idx: number) => (

@@ -46,14 +46,12 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
     const query = searchQuery.toLowerCase().trim();
     return chats.filter((chat) => {
       if (chat.type === "single") {
-        // Search in responder name, username, or email
         return (
           chat.responder_name.toLowerCase().includes(query) ||
           chat.username.toLowerCase().includes(query) ||
           chat.email.toLowerCase().includes(query)
         );
       } else {
-        // Search in incident name or responder names
         return (
           chat.incident_name.toLowerCase().includes(query) ||
           chat.responder.some(
