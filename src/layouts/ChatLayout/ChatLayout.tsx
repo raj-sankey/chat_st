@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import ChatSidebar from "../ChatSidebar/ChatSidebar";
 import ChatWindow from "../ChatWindow/ChatWindow";
+import { useSocket } from "../../contexts/SocketContext";
 
 interface SingleChat {
   type: "single";
@@ -25,6 +26,8 @@ type Chat = SingleChat | GroupChat;
 const ChatLayout: React.FC = () => {
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
   const [pinnedChats, setPinnedChats] = useState<string[]>([]);
+  const [availableChats, setAvailableChats] = useState<Chat[]>([]);
+  const { onlineUsers, currentUser } = useSocket();
 
   const handleTogglePin = (chatId: string) => {
     setPinnedChats((prev) =>
@@ -34,156 +37,83 @@ const ChatLayout: React.FC = () => {
     );
   };
 
-  const chats: Chat[] = [
-    {
-      type: "single",
-      incident_id: "1232231341",
-      responder_name: "Raj Mhatre",
-      responder_id: "2361851723",
-      responder_img_url: "",
-      username: "deflo",
-      email: "raj@.com",
-    },
-    {
-      type: "group",
-      incident_id: "63178492134691",
-      incident_name: "Accident",
-      incident_img_url: "",
-      responder: [
-        {
-          type: "single",
-          incident_id: "1232231341",
-          responder_name: "Raj Mhatre",
-          responder_id: "2361851723",
-          responder_img_url: "",
-          username: "deflo",
-          email: "raj@.com",
-        },
-        {
-          type: "single",
-          incident_id: "7258934",
-          responder_name: "Mhatre",
-          responder_id: "7427832838",
-          responder_img_url: "",
-          username: "abcc",
-          email: "rashjj@.com",
-        },
-      ],
-    },
-    {
-      type: "single",
-      incident_id: "7561239841",
-      responder_name: "Aditi Sharma",
-      responder_id: "1537294832",
-      responder_img_url: "",
-      username: "aditi123",
-      email: "aditi.sharma@.com",
-    },
-    {
-      type: "group",
-      incident_id: "8492731825",
-      incident_name: "Fire Outbreak",
-      incident_img_url: "",
-      responder: [
-        {
-          type: "single",
-          incident_id: "7561239841",
-          responder_name: "Aditi Sharma",
-          responder_id: "1537294832",
-          responder_img_url: "",
-          username: "aditi123",
-          email: "aditi.sharma@.com",
-        },
-        {
-          type: "single",
-          incident_id: "8932341845",
-          responder_name: "Vinay Kumar",
-          responder_id: "1847391829",
-          responder_img_url: "",
-          username: "vinay.k",
-          email: "vinay.kumar@.com",
-        },
-        {
-          type: "single",
-          incident_id: "8723419123",
-          responder_name: "Anita Patel",
-          responder_id: "7489123476",
-          responder_img_url: "",
-          username: "anitap",
-          email: "anita.patel@.com",
-        },
-      ],
-    },
-    {
-      type: "single",
-      incident_id: "8743217329",
-      responder_name: "Kunal Deshmukh",
-      responder_id: "9234729283",
-      responder_img_url: "",
-      username: "kunal_d",
-      email: "kunal.deshmukh@.com",
-    },
-    {
-      type: "group",
-      incident_id: "9572389375",
-      incident_name: "Flooding",
-      incident_img_url: "",
-      responder: [
-        {
-          type: "single",
-          incident_id: "8743217329",
-          responder_name: "Kunal Deshmukh",
-          responder_id: "9234729283",
-          responder_img_url: "",
-          username: "kunal_d",
-          email: "kunal.deshmukh@.com",
-        },
-        {
-          type: "single",
-          incident_id: "1289834729",
-          responder_name: "Shruti Verma",
-          responder_id: "2398471923",
-          responder_img_url: "",
-          username: "shruti_v",
-          email: "shruti.verma@.com",
-        },
-      ],
-    },
-    {
-      type: "group",
-      incident_id: "8620193749",
-      incident_name: "Tornado",
-      incident_img_url: "",
-      responder: [
-        {
-          type: "single",
-          incident_id: "8472039845",
-          responder_name: "Ravi Singh",
-          responder_id: "2847539201",
-          responder_img_url: "",
-          username: "ravi_s",
-          email: "ravi.singh@.com",
-        },
-        {
-          type: "single",
-          incident_id: "9872348432",
-          responder_name: "Neha Gupta",
-          responder_id: "5637284920",
-          responder_img_url: "",
-          username: "neha.gupta",
-          email: "neha.gupta@.com",
-        },
-      ],
-    },
-  ];
+  // Fetch available users from backend
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const response = await fetch("http://localhost:5000/api/users");
+        if (response.ok) {
+          const users = await response.json();
+
+          // Filter out current user and format as SingleChat objects
+          const chatUsers = users
+            .filter((user: any) => user.username !== currentUser?.username)
+            .map((user: any) => ({
+              type: "single" as const,
+              incident_id: user._id || user.id,
+              responder_name: user.name,
+              responder_id: user._id || user.id,
+              responder_img_url: "",
+              username: user.username,
+              email: user.username + "@example.com", // Default email
+            }));
+
+          setAvailableChats(chatUsers);
+        }
+      } catch (error) {
+        console.error("Failed to fetch users:", error);
+      }
+    };
+
+    if (currentUser) {
+      fetchUsers();
+    }
+  }, [currentUser]);
+
+  // Create group chats from online users (optional - you can modify this logic)
+  useEffect(() => {
+    if (onlineUsers.length > 0 && currentUser) {
+      // Create a group with all online users (excluding current user)
+      const onlineUsernames = onlineUsers.filter(
+        (username) => username !== currentUser.username
+      );
+
+      if (onlineUsernames.length > 1) {
+        // For demo purposes, create a group with online users
+        // In a real app, you'd have a proper group creation mechanism
+        const groupChat: GroupChat = {
+          type: "group",
+          incident_id: "online-users-group",
+          incident_name: "Online Users",
+          incident_img_url: "",
+          responder: availableChats.filter(
+            (chat) =>
+              chat.type === "single" && onlineUsernames.includes(chat.username)
+          ) as SingleChat[],
+        };
+
+        // Add group chat if it doesn't exist
+        setAvailableChats((prev) => {
+          const hasGroup = prev.some(
+            (chat) => chat.incident_id === "online-users-group"
+          );
+          if (!hasGroup && groupChat.responder.length > 1) {
+            return [...prev, groupChat];
+          }
+          return prev;
+        });
+      }
+    }
+  }, [onlineUsers, availableChats, currentUser]);
 
   return (
     <div className="h-screen w-screen flex overflow-hidden bg-white border-2 rounded-xl border-[#E4E4E7]">
       <ChatSidebar
-        chats={chats}
+        chats={availableChats}
         selectedChat={selectedChat}
         onSelectChat={setSelectedChat}
         pinnedChats={pinnedChats}
+        onlineUsers={onlineUsers}
       />
       <ChatWindow
         selectedChat={selectedChat}

@@ -1,16 +1,19 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import Icon from "../Icons/Icon";
 
 type CommonProps = {
   variant?: "default" | "outlined" | "filled" | "chat";
-  iconLeft?: React.ReactNode;
-  iconRight?: React.ReactNode;
+  iconLeft?: string;
+  iconRight?: string;
   width?: string;
   height?: string;
   onIconClickLeft?: React.MouseEventHandler<HTMLDivElement>;
   onIconClickRight?: React.MouseEventHandler<HTMLDivElement>;
   className?: string;
   type: string;
+  iconWidth?: number | string;
+  iconHeight?: number | string;
 };
 
 type InputProps = CommonProps &
@@ -32,6 +35,8 @@ const Input = React.forwardRef<HTMLInputElement | HTMLTextAreaElement, Props>(
       variant = "default",
       iconLeft,
       iconRight,
+      iconHeight,
+      iconWidth,
       type = "text",
       width = "100%",
       height = "auto",
@@ -43,7 +48,7 @@ const Input = React.forwardRef<HTMLInputElement | HTMLTextAreaElement, Props>(
     },
     ref
   ) => {
-    const paddingLeft = iconLeft ? "pl-10" : "pl-3";
+    const paddingLeft = iconLeft ? "pl-14" : "pl-3";
     const paddingRight = iconRight ? "pr-10" : "pr-3";
 
     // Conditional rendering for textarea in chat variant
@@ -104,7 +109,12 @@ const Input = React.forwardRef<HTMLInputElement | HTMLTextAreaElement, Props>(
             )}
             onClick={onIconClickLeft}
           >
-            {iconLeft}
+            <Icon
+              name={iconLeft}
+              width={iconWidth}
+              height={iconHeight}
+              color="red"
+            />
           </div>
         )}
         {iconRight && (
@@ -114,7 +124,12 @@ const Input = React.forwardRef<HTMLInputElement | HTMLTextAreaElement, Props>(
             )}
             onClick={onIconClickRight}
           >
-            {iconRight}
+            <Icon
+              name={iconRight}
+              width={iconWidth}
+              height={iconHeight}
+              color="red"
+            />
           </div>
         )}
       </div>

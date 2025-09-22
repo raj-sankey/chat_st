@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import {
   IoChevronBack,
   IoSearch,
@@ -20,6 +20,8 @@ import { IoIosVolumeMute } from "react-icons/io";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LuPinOff } from "react-icons/lu";
+import { useSocket } from "@/contexts/SocketContext";
+import Icon from "@/components/Icons/Icon";
 
 interface ChatWindowProps {
   selectedChat: any | null;
@@ -32,25 +34,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
   onTogglePin,
   pinnedChats,
 }) => {
-  const [messages, setMessages] = useState<
-    {
-      sender: string;
-      text: string;
-      time: string;
-      type: string;
-      fileUrl?: string;
-      fileName?: string;
-      date: string;
-    }[]
-  >([
-    {
-      sender: "Sasha Coen",
-      text: "Hello!",
-      time: "2:59 pm",
-      type: "text",
-      date: new Date().toISOString(),
-    },
-  ]);
+  const { messages, currentUser, sendMessage, joinGroup } = useSocket();
 
   const [view, setView] = useState<"chat" | "profile">("chat");
   const [previewFile, setPreviewFile] = useState<{
@@ -106,29 +90,35 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
     fileUrl?: string,
     fileName?: string
   ) => {
+    if (!selectedChat || !currentUser) return;
+
     const messageText =
       type === "audio" && !msg.trim()
         ? `Voice message: ${fileName || "Audio"}`
         : msg;
 
-    const now = new Date();
-    const formattedTime = now.toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-
-    setMessages((prev) => [
-      ...prev,
-      {
-        sender: "Me",
-        text: messageText,
-        time: formattedTime,
+    if (selectedChat.type === "single") {
+      // Send direct message
+      sendMessage({
+        from: currentUser.username,
+        to: selectedChat.username,
+        content: messageText,
         type,
         fileUrl,
         fileName,
-        date: now.toISOString(),
-      },
-    ]);
+      });
+    } else {
+      // Send to group - join the group room first
+      joinGroup(selectedChat.incident_id);
+      sendMessage({
+        from: currentUser.username,
+        room: selectedChat.incident_id,
+        content: messageText,
+        type,
+        fileUrl,
+        fileName,
+      });
+    }
 
     setPreviewFile(null);
   };
@@ -152,6 +142,39 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
     }
   };
 
+  const filteredMessages = useMemo(() => {
+    if (!selectedChat || !currentUser) return [];
+
+    const uniqueMessages = new Map();
+
+    messages.forEach((msg) => {
+      if (selectedChat.type === "single") {
+        // Check if message is between current user and selected chat user
+        const isRelevantMessage =
+          (msg.from === currentUser.username &&
+            msg.to === selectedChat.username) ||
+          (msg.from === selectedChat.username &&
+            msg.to === currentUser.username);
+
+        if (isRelevantMessage) {
+          // Use a unique identifier for the message to avoid duplicates
+          const messageKey =
+            msg.id || `${msg.from}-${msg.to}-${msg.timestamp}-${msg.content}`;
+          uniqueMessages.set(messageKey, msg);
+        }
+      } else {
+        // For group messages
+        if (msg.room === selectedChat.incident_id) {
+          const messageKey =
+            msg.id || `${msg.room}-${msg.from}-${msg.timestamp}-${msg.content}`;
+          uniqueMessages.set(messageKey, msg);
+        }
+      }
+    });
+
+    return Array.from(uniqueMessages.values());
+  }, [messages, selectedChat, currentUser]);
+
   const handleSearch = (query: string) => {
     setSearchQuery(query);
     if (!query.trim()) {
@@ -160,9 +183,9 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
       return;
     }
 
-    const results = messages
+    const results = filteredMessages
       .map((msg, index) =>
-        msg.text.toLowerCase().includes(query.toLowerCase()) ? index : -1
+        msg.content.toLowerCase().includes(query.toLowerCase()) ? index : -1
       )
       .filter((index) => index !== -1);
 
@@ -200,6 +223,55 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
     setCurrentResultIndex(-1);
   };
 
+  // Date formatting and grouping
+  const formatDate = (date: Date) => {
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+
+    if (date.toDateString() === today.toDateString()) return "Today";
+    if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
+
+    return date.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  };
+
+  const groupMessagesByDate = (messages: any[]) => {
+    return messages.reduce((groups: any, msg) => {
+      const dateKey = formatDate(msg.timestamp);
+      if (!groups[dateKey]) groups[dateKey] = [];
+      groups[dateKey].push(msg);
+      return groups;
+    }, {});
+  };
+
+  const sortDateKeys = (keys: string[]) => {
+    const dateOrder: Record<string, number> = {
+      Today: 0,
+      Yesterday: 1,
+    };
+
+    return keys.sort((a, b) => {
+      const aOrder = dateOrder[a] !== undefined ? dateOrder[a] : 2;
+      const bOrder = dateOrder[b] !== undefined ? dateOrder[b] : 2;
+
+      if (aOrder !== bOrder) return aOrder - bOrder;
+
+      // For custom dates, sort chronologically
+      if (aOrder === 2 && bOrder === 2) {
+        return new Date(a).getTime() - new Date(b).getTime();
+      }
+
+      return 0;
+    });
+  };
+
+  const groupedMessages = groupMessagesByDate(filteredMessages);
+  const sortedDateKeys = sortDateKeys(Object.keys(groupedMessages));
+
   if (!selectedChat) {
     return (
       <div className="flex-1 flex items-center justify-center text-gray-400">
@@ -218,59 +290,22 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
       ? selectedChat.email
       : selectedChat.responder.map((r: any) => r.responder_name).join(", ");
 
-  // Date formatting and grouping
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const today = new Date();
-    const yesterday = new Date();
-    yesterday.setDate(today.getDate() - 1);
-
-    if (date.toDateString() === today.toDateString()) return "Today";
-    if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
-
-    return date.toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-  };
-
-  const groupMessagesByDate = (messages: any[]) => {
-    return messages.reduce((groups: any, msg, index) => {
-      const dateKey = formatDate(msg.date);
-      if (!groups[dateKey]) groups[dateKey] = [];
-      groups[dateKey].push({ ...msg, index });
-      return groups;
-    }, {});
-  };
-
-  const sortDateKeys = (keys: string[]) => {
-    return keys.sort((a, b) => {
-      const parseDate = (label: string) => {
-        if (label === "Today") return new Date();
-        if (label === "Yesterday") {
-          const d = new Date();
-          d.setDate(d.getDate() - 1);
-          return d;
-        }
-        return new Date(label);
-      };
-      return parseDate(a).getTime() - parseDate(b).getTime();
-    });
-  };
-
-  const groupedMessages = groupMessagesByDate(messages);
-  console.log("grouped message", groupedMessages);
-  const sortedDateKeys = sortDateKeys(Object.keys(groupedMessages));
-
   return (
     <div className="flex flex-col flex-1 relative">
       {/* Header */}
       <div className="p-5 h-20 border-b flex items-center justify-between bg-transparent">
         <div className="flex justify-between items-center gap-5">
-          <IoChevronBack
+          {/* <IoChevronBack
             size={24}
             onClick={() => setView("chat")}
+            className="cursor-pointer"
+          /> */}
+          <Icon
+            onClick={() => setView("chat")}
+            name="backArrow"
+            width={10}
+            height={10}
+            color="red"
             className="cursor-pointer"
           />
           <div className="flex items-center">
@@ -331,14 +366,19 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
                 </Button>
               </div>
             ) : (
-              <Button
-                variant="ghost"
-                size="icon"
+              // <Button
+              //   variant="ghost"
+              //   size="icon"
+
+              //   className="h-12 w-12"
+              // >
+              <Icon
                 onClick={() => setSearchMode(true)}
-                className="h-12 w-12"
-              >
-                <IoSearch size={16} />
-              </Button>
+                name="Search"
+                width={24}
+                height={24}
+                color="red"
+              />
             )}
 
             <Popover>
@@ -445,20 +485,26 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
           </div>
         ) : view === "chat" ? (
           <>
-            {messages.length === 0 ? (
-              // Empty state fallback
+            {filteredMessages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center text-gray-500">
-                <CiChat1 size={130} />
-                <h2 className="text-xl font-semibold text-gray-700">
-                  No chat messages
+                <Icon
+                  name="message-square"
+                  width={132}
+                  height={132}
+                  color="red"
+                />
+                <h2 className="text-xl font-semibold text-gray-700 mt-4">
+                  {selectedChat
+                    ? `Start a conversation with ${selectedChat.type === "single" ? selectedChat.responder_name : selectedChat.incident_name}`
+                    : "No chat selected"}
                 </h2>
                 <p className="text-sm text-gray-500 mt-2 max-w-xs">
-                  Description text for empty state to inform user what they can
-                  do
+                  {selectedChat
+                    ? "Send a message to begin chatting"
+                    : "Select a user or group from the sidebar to start messaging"}
                 </p>
               </div>
             ) : (
-              // Messages rendering
               <>
                 {sortedDateKeys.map((dateKey, idx) => (
                   <div key={idx}>
@@ -470,23 +516,28 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
                     </div>
 
                     {/* Messages */}
-                    {groupedMessages[dateKey].map((msg: any) => (
-                      <ChatMessage
-                        key={`msg-${msg.index}`}
-                        id={`message-${msg.index}`}
-                        sender={msg.sender}
-                        text={msg.text}
-                        time={msg.time}
-                        type={msg.type}
-                        fileUrl={msg.fileUrl}
-                        fileName={msg.fileName}
-                        isHighlighted={
-                          searchResults.includes(msg.index) &&
-                          currentResultIndex ===
-                            searchResults.indexOf(msg.index)
-                        }
-                      />
-                    ))}
+                    {groupedMessages[dateKey].map(
+                      (msg: any, msgIndex: number) => (
+                        <ChatMessage
+                          key={msg.id || `msg-${msgIndex}`}
+                          id={`message-${msgIndex}`}
+                          sender={msg.from}
+                          text={msg.content}
+                          time={msg.timestamp.toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                          type={msg.type || "text"}
+                          fileUrl={msg.fileUrl}
+                          fileName={msg.fileName}
+                          isHighlighted={
+                            searchResults.includes(msgIndex) &&
+                            currentResultIndex ===
+                              searchResults.indexOf(msgIndex)
+                          }
+                        />
+                      )
+                    )}
                   </div>
                 ))}
                 <div ref={messagesEndRef} />
@@ -494,7 +545,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
             )}
           </>
         ) : (
-          // Profile view
           <div className="flex flex-col items-center gap-2">
             <img
               src={selectedChat.incident_img_url || userIcon}

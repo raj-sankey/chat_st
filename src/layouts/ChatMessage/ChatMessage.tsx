@@ -1,5 +1,6 @@
 import React from "react";
 import userIcon from "../../assets/img/default_users.png";
+import { useSocket } from "@/contexts/SocketContext";
 
 interface ChatMessageProps {
   id?: string;
@@ -22,7 +23,8 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
   fileName,
   isHighlighted = false,
 }) => {
-  const isMe = sender === "Me";
+  const { currentUser } = useSocket();
+  const isMe = sender === currentUser?.username || sender === "Me";
 
   const getFileIcon = (fileType: string) => {
     switch (fileType) {
@@ -38,34 +40,35 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
   return (
     <div
       id={id}
-      className={`flex mb-3 ${isMe ? "justify-end" : "justify-start"} ${isHighlighted ? "bg-yellow-100 rounded-lg" : ""}`}
+      className={`flex mb-3 ${isMe ? "justify-end" : "justify-start"} ${isHighlighted ? "bg-yellow-100 rounded-lg p-1" : ""}`}
     >
       {!isMe && (
-        <>
-          <div className="w-8 h-8 rounded-full flex justify-center items-center bg-[#F4F4F5] mr-2">
-            <img src={userIcon} alt="" height={"20px"} width={"20px"} />
-            <div className="w-2 h-2 rounded-full bg-red-500 relative bottom-[-9px] right-[-3px]"></div>
-          </div>
-        </>
+        <div className="w-8 h-8 rounded-full flex justify-center items-center bg-[#F4F4F5] mr-2 flex-shrink-0">
+          <img src={userIcon} alt="" height={"20px"} width={"20px"} />
+          <div className="w-2 h-2 rounded-full bg-green-500 absolute bottom-0 right-0 border border-white"></div>
+        </div>
       )}
 
-      <div className="flex flex-col items-end">
-        {/* File message */}
+      <div
+        className={`flex flex-col ${isMe ? "items-end" : "items-start"} max-w-xs`}
+      >
+        {/* Sender name for received messages */}
+        {/* {!isMe && <p className="text-xs text-gray-500 mb-1 ml-1">{sender}</p>} */}
+
+        {/* Message bubble */}
         <div
-          className={`p-3 max-w-xs flex flex-col items-start ${
+          className={`p-3 rounded-lg ${
             isMe
-              ? "bg-[#0369A1] rounded-t-lg rounded-bl-lg text-white"
-              : "bg-[#F4F4F5] rounded-b-lg rounded-tr-lg"
+              ? "bg-[#0369A1] text-white rounded-tr-none"
+              : "bg-[#F4F4F5] text-gray-800 rounded-tl-none"
           }`}
         >
-          {!isMe && type !== "text" && (
-            <p className="font-semibold text-sm">{sender}</p>
-          )}
-
           {/* Render message depending on type */}
           {type === "text" && (
             <>
-              {!isMe && <p className="font-semibold text-sm">{sender}</p>}
+              {!isMe && (
+                <p className="font-semibold text-sm text-left">{sender}</p>
+              )}
               <p className="text-left">{text}</p>
             </>
           )}
@@ -106,14 +109,15 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
               <div className="flex items-center gap-2 p-2 bg-white bg-opacity-20 rounded-t">
                 <audio controls src={fileUrl} className="flex-1" />
               </div>
-              {fileName && (
+              {text ? (
+                <p className="mt-2 text-sm text-left text-gray-300">{text}</p>
+              ) : (
                 <p className="text-sm text-left p-2 bg-white rounded-b text-gray-300">
                   {fileName}
                 </p>
               )}
-              {text && (
-                <p className="mt-2 text-sm text-left text-gray-300">{text}</p>
-              )}
+              {/* {fileName && <p className="text-sm text-left p-1">{fileName}</p>}
+              {text && <p className="mt-2 text-sm text-left">{text}</p>} */}
             </div>
           )}
 
@@ -131,13 +135,27 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
               {text && <p className="mt-2 text-sm text-left">{text}</p>}
             </div>
           )}
-
           {/* Time */}
-          <p className="text-xs text-white mt-1 flex justify-end w-full">
+          {/* Time inside bubble */}
+          <p
+            className={`text-xs mt-1 flex justify-end w-full ${isMe ? "text-blue-100" : "text-gray-500"}`}
+          >
             {time}
           </p>
         </div>
       </div>
+
+      {/* {isMe && (
+        <div className="w-8 h-8 rounded-full flex justify-center items-center bg-[#0369A1] ml-2 flex-shrink-0">
+          <img
+            src={userIcon}
+            alt=""
+            height={"20px"}
+            width={"20px"}
+            className="invert"
+          />
+        </div>
+      )} */}
     </div>
   );
 };

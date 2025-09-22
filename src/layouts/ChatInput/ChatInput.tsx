@@ -10,6 +10,8 @@ import {
 } from "react-icons/io5";
 import { Button } from "@/components/ui/button";
 import { useReactMediaRecorder } from "react-media-recorder";
+import { useSocket } from "@/contexts/SocketContext";
+import Icon from "@/components/Icons/Icon";
 
 interface ChatInputProps {
   onSend: (
@@ -31,6 +33,8 @@ const ChatInput: React.FC<ChatInputProps> = ({
   onCancelPreview,
   previewFileType,
 }) => {
+  const { sendTypingIndicator, currentUser } = useSocket();
+  const typingTimeoutRef = useRef<NodeJS.Timeout>();
   const [msg, setMsg] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -55,6 +59,25 @@ const ChatInput: React.FC<ChatInputProps> = ({
     if (msg.trim() || hasPreview) {
       onSend(msg);
       setMsg("");
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setMsg(e.target.value);
+
+    // Send typing indicator
+    if (e.target.value.trim()) {
+      sendTypingIndicator(); // You might want to pass the recipient here
+
+      // Clear previous timeout
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+
+      // Set timeout to stop typing indicator after 1 second of inactivity
+      typingTimeoutRef.current = setTimeout(() => {
+        // You might want to implement a "stop typing" event
+      }, 1000);
     }
   };
 
@@ -190,27 +213,22 @@ const ChatInput: React.FC<ChatInputProps> = ({
         <>
           <Input
             type="text"
-            variant="chat"
+            variant="default "
             placeholder={
               hasPreview
                 ? `Add a caption to your ${previewFileType}...`
                 : "Type a message..."
             }
-            iconLeft={
-              !hasPreview ? (
-                <GrAttachment
-                  size={24}
-                  onClick={() => fileInputRef.current?.click()}
-                  className="cursor-pointer"
-                />
-              ) : undefined
-            }
-            iconRight={<RiTelegram2Line size={24} />}
+            iconLeft={!hasPreview ? "paperclip" : undefined}
+            iconRight={"send"}
             onIconClickRight={sendMessage}
-            height="40px"
+            iconHeight={22}
+            iconWidth={22}
+            height="50px"
             width="460px"
             value={msg}
-            onChange={(e: any) => setMsg(e.target.value)}
+            // onChange={(e: any) => setMsg(e.target.value)}
+            onChange={handleInputChange}
             onKeyPress={handleKeyPress}
           />
 
@@ -223,19 +241,33 @@ const ChatInput: React.FC<ChatInputProps> = ({
               onTouchEnd={stopVoiceRecording}
               className="absolute cursor-pointer top-[-18px] right-[20px] flex items-center justify-center w-18 h-18 bg-white border-2 border-[#E4E4E7] rounded-full shadow-md hover:shadow-lg transition duration-300"
             >
-              <IoMicOutline className="text-black" size={38} />
+              <Icon
+                // onClick={() => setSearchMode(true)}
+                name="Mic"
+                width={24}
+                height={24}
+                color="black"
+              />
             </div>
           )}
 
           {/* Video Button */}
           {!hasPreview && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="w-12 h-12 bg-white border-2 border-[#E4E4E7] rounded-full hover:bg-gray-50"
-            >
-              <IoVideocamOutline size={24} />
-            </Button>
+            // <Button
+            //   variant="ghost"
+            //   size="icon"
+            //   className="w-12 h-12 bg-white border-2 border-[#E4E4E7] rounded-full hover:bg-gray-50"
+            // >
+            <div className="flex justify-center items-center w-12 h-12 bg-white border-2 border-[#E4E4E7] rounded-full hover:bg-gray-50">
+              <Icon
+                // onClick={() => setSearchMode(true)}
+                name="video"
+                width={24}
+                height={24}
+                color="black"
+              />
+            </div>
+            // </Button>
           )}
         </>
       )}
