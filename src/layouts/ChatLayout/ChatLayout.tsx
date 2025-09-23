@@ -26,11 +26,20 @@ type Chat = SingleChat | GroupChat;
 const ChatLayout: React.FC = () => {
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
   const [pinnedChats, setPinnedChats] = useState<string[]>([]);
+  const [muteChats, setMuteChats] = useState<string[]>([]);
   const [availableChats, setAvailableChats] = useState<Chat[]>([]);
   const { onlineUsers, currentUser } = useSocket();
 
   const handleTogglePin = (chatId: string) => {
     setPinnedChats((prev) =>
+      prev.includes(chatId)
+        ? prev.filter((id) => id !== chatId)
+        : [...prev, chatId]
+    );
+  };
+
+  const handleMutePin = (chatId: string) => {
+    setMuteChats((prev) =>
       prev.includes(chatId)
         ? prev.filter((id) => id !== chatId)
         : [...prev, chatId]
@@ -113,12 +122,15 @@ const ChatLayout: React.FC = () => {
         selectedChat={selectedChat}
         onSelectChat={setSelectedChat}
         pinnedChats={pinnedChats}
+        muteChats={muteChats}
         onlineUsers={onlineUsers}
       />
       <ChatWindow
         selectedChat={selectedChat}
         onTogglePin={handleTogglePin}
+        onToggleMute={handleMutePin}
         pinnedChats={pinnedChats}
+        muteChats={muteChats}
       />
     </div>
   );

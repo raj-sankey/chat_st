@@ -26,13 +26,17 @@ import Icon from "@/components/Icons/Icon";
 interface ChatWindowProps {
   selectedChat: any | null;
   onTogglePin: (chatId: string) => void;
+  onToggleMute: (chatId: string) => void;
   pinnedChats: string[];
+  muteChats: string[];
 }
 
 const ChatWindow: React.FC<ChatWindowProps> = ({
   selectedChat,
   onTogglePin,
+  onToggleMute,
   pinnedChats,
+  muteChats,
 }) => {
   const { messages, currentUser, sendMessage, joinGroup } = useSocket();
 
@@ -52,6 +56,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
 
   const isPinned =
     selectedChat && pinnedChats.includes(selectedChat.incident_id);
+  const isMute = selectedChat && muteChats.includes(selectedChat.incident_id);
 
   const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
     const container = messagesContainerRef.current;
@@ -391,7 +396,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
                     className="flex items-center gap-3 cursor-pointer"
                     onClick={() => setView("profile")}
                   >
-                    <CgProfile size={20} />
+                    <Icon name="profile" width={20} height={20} color="red" />
+
                     <span className="text-lg">View Profile</span>
                   </div>
                   <div
@@ -399,18 +405,30 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
                     onClick={() => onTogglePin(selectedChat.incident_id)}
                   >
                     {isPinned ? (
-                      <LuPinOff size={20} />
+                      // <LuPinOff size={20} />
+                      <Icon name="unpin" width={20} height={20} color="red" />
                     ) : (
-                      <MdOutlinePushPin size={20} />
+                      // <MdOutlinePushPin size={20} />
+                      <Icon name="pin" width={16} height={16} color="red" />
                     )}
 
                     <span className="text-lg">
                       {isPinned ? "Unpin Chat" : "Pin Chat"}
                     </span>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <IoIosVolumeMute size={20} />
-                    <span className="text-lg">Unmute Chat</span>
+                  <div
+                    className="flex items-center gap-3 cursor-pointer"
+                    onClick={() => onToggleMute(selectedChat.incident_id)}
+                  >
+                    {/* <IoIosVolumeMute size={20} /> */}
+                    {isMute ? (
+                      <Icon name="unmute" width={18} height={18} color="red" />
+                    ) : (
+                      <Icon name="mute" width={18} height={18} color="red" />
+                    )}
+                    <span className="text-lg">
+                      {isMute ? "UnMute Chat" : "Mute Chat"}
+                    </span>
                   </div>
                 </div>
               </PopoverContent>

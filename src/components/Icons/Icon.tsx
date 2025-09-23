@@ -8,7 +8,8 @@ interface IconProps {
   height?: number | string;
   color?: string;
   className?: string;
-  onClick?: React.MouseEventHandler<HTMLImageElement>; // ✅ add onClick
+  onClick?: React.MouseEventHandler<HTMLImageElement>;
+  disabled?: boolean;
 }
 
 const Icon: React.FC<IconProps> = ({
@@ -18,6 +19,7 @@ const Icon: React.FC<IconProps> = ({
   color = "currentColor",
   className,
   onClick,
+  disabled = false,
 }) => {
   const IconSrc = Icons[name];
 
@@ -28,13 +30,18 @@ const Icon: React.FC<IconProps> = ({
 
   return (
     <img
+      draggable={false}
       src={IconSrc}
       alt={name}
       width={width}
       height={height}
-      style={{ color }}
+      style={{
+        color,
+        opacity: disabled ? 0.5 : 1,
+        pointerEvents: disabled ? "none" : "auto",
+      }}
       className={className}
-      onClick={onClick} // ✅ pass click handler
+      onClick={disabled ? undefined : onClick}
     />
   );
 };

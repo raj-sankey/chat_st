@@ -34,6 +34,7 @@ interface ChatSidebarProps {
   onSelectChat: (chat: Chat) => void;
   selectedChat: Chat | null;
   pinnedChats: string[];
+  muteChats: string[];
   onlineUsers: string[];
 }
 
@@ -42,6 +43,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   onSelectChat,
   selectedChat,
   pinnedChats,
+  muteChats,
   onlineUsers,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -274,12 +276,13 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                 ? chat.responder.length > 2
                   ? `${chat.responder
                       .slice(0, 2)
-                      .map((r) => r.responder_name)
+                      .map((r: any) => r.responder_name)
                       .join(", ")}...`
-                  : chat.responder.map((r) => r.responder_name).join(", ")
+                  : chat.responder.map((r: any) => r.responder_name).join(", ")
                 : chat.email;
 
             const isPinned = pinnedChats.includes(chat.incident_id);
+            const isMuted = muteChats.includes(chat.incident_id);
             const lastMessageTime = getLastMessageTime(chat);
             const isOnline =
               chat.type === "single" && isUserOnline(chat.username);
@@ -314,11 +317,15 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                       </span>
                     )}
                     {isPinned && (
-                      <MdOutlinePushPin
-                        size={18}
-                        className="text-blue-500"
-                        title="Pinned"
-                      />
+                      // <MdOutlinePushPin
+                      //   size={18}
+                      //   className="text-blue-500"
+                      //   title="Pinned"
+                      // />
+                      <Icon name="pin" width={18} height={18} color="red" />
+                    )}
+                    {isMuted && (
+                      <Icon name="unmute" width={18} height={18} color="red" />
                     )}
                   </div>
                 </div>

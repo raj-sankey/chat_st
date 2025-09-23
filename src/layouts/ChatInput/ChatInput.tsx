@@ -1,13 +1,6 @@
 import React, { useRef, useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
-import { RiTelegram2Line } from "react-icons/ri";
-import { GrAttachment } from "react-icons/gr";
-import {
-  IoMicOutline,
-  IoVideocamOutline,
-  IoClose,
-  IoSend,
-} from "react-icons/io5";
+import { IoClose, IoSend } from "react-icons/io5";
 import { Button } from "@/components/ui/button";
 import { useReactMediaRecorder } from "react-media-recorder";
 import { useSocket } from "@/contexts/SocketContext";
@@ -33,27 +26,53 @@ const ChatInput: React.FC<ChatInputProps> = ({
   onCancelPreview,
   previewFileType,
 }) => {
-  const { sendTypingIndicator, currentUser } = useSocket();
-  const typingTimeoutRef = useRef<NodeJS.Timeout>();
+  const { sendTypingIndicator } = useSocket();
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [msg, setMsg] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
+  const [isMicHeld, setIsMicHeld] = useState(false);
+  const [isLocked, setIsLocked] = useState(false);
+  const [dragDistance, setDragDistance] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const recordingStartTimeRef = useRef<number>(0);
+  const micButtonRef = useRef<HTMLDivElement>(null);
+  const dragStartY = useRef(0);
+
+  // Add a ref to track if recording was canceled
+  const wasCanceledRef = useRef(false);
 
   const { status, startRecording, stopRecording, mediaBlobUrl, clearBlobUrl } =
     useReactMediaRecorder({
       audio: true,
       onStop: (blobUrl, blob) => {
-        // Create a file from the blob
-        const audioFile = new File([blob], `voice-message-${Date.now()}.webm`, {
-          type: blob.type,
-        });
-
-        // Send the audio file
-        onFileSelect(blobUrl, "audio", audioFile);
+        // Use the ref to check if recording was canceled
+        if (!wasCanceledRef.current && blob.size > 0) {
+          const audioFile = new File(
+            [blob],
+            `voice-message-${Date.now()}.webm`,
+            {
+              type: blob.type,
+            }
+          );
+          onFileSelect(blobUrl, "audio", audioFile);
+        }
+        // Reset the canceled flag for next recording
+        wasCanceledRef.current = false;
       },
     });
+
+  useEffect(() => {
+    return () => {
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+      }
+      if (mediaBlobUrl) {
+        clearBlobUrl();
+      }
+    };
+  }, []);
 
   const sendMessage = () => {
     if (msg.trim() || hasPreview) {
@@ -64,20 +83,12 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setMsg(e.target.value);
-
-    // Send typing indicator
     if (e.target.value.trim()) {
-      sendTypingIndicator(); // You might want to pass the recipient here
-
-      // Clear previous timeout
+      sendTypingIndicator();
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
-
-      // Set timeout to stop typing indicator after 1 second of inactivity
-      typingTimeoutRef.current = setTimeout(() => {
-        // You might want to implement a "stop typing" event
-      }, 1000);
+      typingTimeoutRef.current = setTimeout(() => {}, 1000);
     }
   };
 
@@ -87,13 +98,12 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
     const fileUrl = URL.createObjectURL(file);
     let type = "file";
-
     if (file.type.startsWith("image/")) type = "image";
     else if (file.type.startsWith("video/")) type = "video";
     else if (file.type.startsWith("audio/")) type = "audio";
 
     onFileSelect(fileUrl, type, file);
-    e.target.value = ""; // reset
+    e.target.value = "";
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -104,64 +114,144 @@ const ChatInput: React.FC<ChatInputProps> = ({
   };
 
   const startVoiceRecording = () => {
+    setIsMicHeld(true);
     setIsRecording(true);
     setRecordingTime(0);
+    recordingStartTimeRef.current = Date.now();
+    wasCanceledRef.current = false; // Reset canceled flag when starting new recording
     startRecording();
 
-    // Start timer
+    const updateTimer = () => {
+      if (isRecording) {
+        const elapsed = Math.floor(
+          (Date.now() - recordingStartTimeRef.current) / 1000
+        );
+        setRecordingTime(elapsed);
+        requestAnimationFrame(updateTimer);
+      }
+    };
+
+    requestAnimationFrame(updateTimer);
+
     recordingTimerRef.current = setInterval(() => {
-      setRecordingTime((prev) => prev + 1);
-    }, 1000);
+      const elapsed = Math.floor(
+        (Date.now() - recordingStartTimeRef.current) / 1000
+      );
+      setRecordingTime(elapsed);
+    }, 100);
   };
 
   const stopVoiceRecording = () => {
+    // Set states first
+    setIsMicHeld(false);
     setIsRecording(false);
+    setIsLocked(false);
+    setDragDistance(0);
+
+    // Stop recording - this will trigger onStop callback
     stopRecording();
 
-    // Clear timer
     if (recordingTimerRef.current) {
       clearInterval(recordingTimerRef.current);
       recordingTimerRef.current = null;
     }
-
     setRecordingTime(0);
   };
 
   const cancelRecording = () => {
+    // Mark as canceled before stopping
+    wasCanceledRef.current = true;
+
+    // Set states
+    setIsMicHeld(false);
     setIsRecording(false);
+    setIsLocked(false);
+    setDragDistance(0);
+
+    // Stop the recording
     if (status === "recording") {
       stopRecording();
     }
+
+    // Clear the blob URL
     clearBlobUrl();
 
-    // Clear timer
+    // Clear timers
     if (recordingTimerRef.current) {
       clearInterval(recordingTimerRef.current);
       recordingTimerRef.current = null;
     }
-
     setRecordingTime(0);
   };
 
-  // Format recording time (mm:ss)
+  const lockRecording = () => {
+    setIsLocked(true);
+    setIsMicHeld(false);
+  };
+
+  // Handle mouse events for drag to lock
+  const handleMicMouseDown = (e: React.MouseEvent) => {
+    dragStartY.current = e.clientY;
+    startVoiceRecording();
+  };
+
+  const handleMicMouseUp = () => {
+    if (!isLocked && isRecording) {
+      stopVoiceRecording();
+    }
+  };
+
+  const handleMicMouseMove = (e: React.MouseEvent) => {
+    if (isRecording && !isLocked) {
+      const currentY = e.clientY;
+      const distance = dragStartY.current - currentY;
+      setDragDistance(Math.max(0, distance));
+      if (distance >= 50) {
+        lockRecording();
+      }
+    }
+  };
+
+  const handleMicMouseLeave = () => {
+    if (!isLocked && isRecording) {
+      stopVoiceRecording();
+    }
+  };
+
+  // Handle touch events for drag to lock
+  const handleMicTouchStart = (e: React.TouchEvent) => {
+    e.preventDefault();
+    dragStartY.current = e.touches[0].clientY;
+    startVoiceRecording();
+  };
+
+  const handleMicTouchMove = (e: React.TouchEvent) => {
+    if (isRecording && !isLocked) {
+      const currentY = e.touches[0].clientY;
+      const distance = dragStartY.current - currentY;
+      setDragDistance(Math.max(0, distance));
+      if (distance >= 50) {
+        lockRecording();
+      }
+    }
+  };
+
+  const handleMicTouchEnd = (e: React.TouchEvent) => {
+    e.preventDefault();
+    if (!isLocked && isRecording) {
+      stopVoiceRecording();
+    }
+  };
+
+  // Optimized formatTime function
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
-
-  // Clean up timer on unmount
-  useEffect(() => {
-    return () => {
-      if (recordingTimerRef.current) {
-        clearInterval(recordingTimerRef.current);
-      }
-    };
-  }, []);
 
   return (
     <div className="p-3 border-t flex items-center gap-2 bg-white relative">
-      {/* Hidden File Input */}
       <input
         type="file"
         ref={fileInputRef}
@@ -181,39 +271,44 @@ const ChatInput: React.FC<ChatInputProps> = ({
         </Button>
       )}
 
-      {isRecording ? (
-        // Recording UI
-        <div className="flex items-center justify-between w-full bg-red-50 border border-red-200 rounded-lg p-3">
-          <div className="flex items-center gap-3">
-            <div className="w-4 h-4 bg-red-500 rounded-full animate-pulse"></div>
-            <span className="text-red-600 font-medium">Recording...</span>
-            <span className="text-red-600">{formatTime(recordingTime)}</span>
+      <>
+        {isRecording ? (
+          <div className="flex items-center justify-between w-3/4 bg-red-50 border border-red-200 rounded-lg p-3">
+            <div className="flex items-center gap-3">
+              <div className="w-4 h-4 bg-red-500 rounded-full animate-pulse"></div>
+              <span className="text-red-600 font-medium">
+                {isLocked ? "Recording (Locked)..." : "Recording..."}
+              </span>
+              <span className="text-red-600 font-mono text-lg">
+                {formatTime(recordingTime)}
+              </span>
+            </div>
+
+            {isLocked && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={cancelRecording}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <IoClose size={20} />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={stopVoiceRecording}
+                  className="text-green-600 hover:text-green-800"
+                >
+                  <IoSend size={20} />
+                </Button>
+              </div>
+            )}
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={cancelRecording}
-              className="text-gray-500 hover:text-gray-700"
-            >
-              <IoClose size={20} />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={stopVoiceRecording}
-              className="text-green-600 hover:text-green-800"
-            >
-              <IoSend size={20} />
-            </Button>
-          </div>
-        </div>
-      ) : (
-        // Regular Input UI
-        <>
+        ) : (
           <Input
             type="text"
-            variant="default "
+            variant="default"
             placeholder={
               hasPreview
                 ? `Add a caption to your ${previewFileType}...`
@@ -222,55 +317,56 @@ const ChatInput: React.FC<ChatInputProps> = ({
             iconLeft={!hasPreview ? "paperclip" : undefined}
             iconRight={"send"}
             onIconClickRight={sendMessage}
+            onIconClickLeft={() => fileInputRef.current?.click()}
             iconHeight={22}
             iconWidth={22}
             height="50px"
             width="460px"
             value={msg}
-            // onChange={(e: any) => setMsg(e.target.value)}
             onChange={handleInputChange}
             onKeyPress={handleKeyPress}
           />
+        )}
 
-          {/* Mic Button - Push to Talk */}
-          {!hasPreview && (
-            <div
-              onMouseDown={startVoiceRecording}
-              onMouseUp={stopVoiceRecording}
-              onTouchStart={startVoiceRecording}
-              onTouchEnd={stopVoiceRecording}
-              className="absolute cursor-pointer top-[-18px] right-[20px] flex items-center justify-center w-18 h-18 bg-white border-2 border-[#E4E4E7] rounded-full shadow-md hover:shadow-lg transition duration-300"
-            >
-              <Icon
-                // onClick={() => setSearchMode(true)}
-                name="Mic"
-                width={24}
-                height={24}
-                color="black"
-              />
-            </div>
-          )}
+        {!hasPreview && (
+          <div
+            ref={micButtonRef}
+            onMouseDown={handleMicMouseDown}
+            onMouseUp={handleMicMouseUp}
+            onMouseMove={handleMicMouseMove}
+            onMouseLeave={handleMicMouseLeave}
+            onTouchStart={handleMicTouchStart}
+            onTouchMove={handleMicTouchMove}
+            onTouchEnd={handleMicTouchEnd}
+            className={`absolute cursor-pointer top-[-18px] right-[20px] flex items-center justify-center w-18 h-18 border-2 rounded-full shadow-md hover:shadow-lg transition duration-300 ${
+              isLocked
+                ? "bg-green-500 border-green-600"
+                : isMicHeld
+                  ? "bg-[#0EA5E9] border-[#0EA5E9]"
+                  : "bg-white border-[#E4E4E7] hover:bg-gray-50"
+            }`}
+            style={{
+              transform: isRecording
+                ? `translateY(-${Math.min(30, dragDistance / 3)}px)`
+                : "none",
+              transition: "transform 0.2s ease, background-color 0.2s ease",
+            }}
+          >
+            <Icon
+              name="Mic"
+              width={24}
+              height={24}
+              color={isLocked || isMicHeld ? "white" : "black"}
+            />
+          </div>
+        )}
 
-          {/* Video Button */}
-          {!hasPreview && (
-            // <Button
-            //   variant="ghost"
-            //   size="icon"
-            //   className="w-12 h-12 bg-white border-2 border-[#E4E4E7] rounded-full hover:bg-gray-50"
-            // >
-            <div className="flex justify-center items-center w-12 h-12 bg-white border-2 border-[#E4E4E7] rounded-full hover:bg-gray-50">
-              <Icon
-                // onClick={() => setSearchMode(true)}
-                name="video"
-                width={24}
-                height={24}
-                color="black"
-              />
-            </div>
-            // </Button>
-          )}
-        </>
-      )}
+        {!hasPreview && (
+          <div className="flex justify-center items-center w-12 h-12 bg-white border-2 border-[#E4E4E7] rounded-full hover:bg-gray-50">
+            <Icon name="video" width={24} height={24} color="black" />
+          </div>
+        )}
+      </>
     </div>
   );
 };
